@@ -46,6 +46,7 @@ const tourSchema = new mongoose.Schema(
       default: 4.5,
       min: [1, 'Ratings must be above 1'],
       max: [5, 'Ratings must be below 5'],
+      set: rating => Math.round(rating * 10) / 10,
     },
     ratingsQuantity: {
       type: Number,
@@ -91,6 +92,36 @@ const tourSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    startLocation: {
+      // GeoJSON
+      type: {
+        type: String,
+        default: 'Point',
+        enum: ['Point'],
+      },
+      coordinates: [Number],
+      address: String,
+      description: String,
+    },
+    locations: [
+      {
+        type: {
+          type: String,
+          default: 'Point',
+          enumb: ['Point'],
+        },
+        coordinates: [Number],
+        address: String,
+        description: String,
+        day: Number,
+      },
+    ],
+    guides: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   {
     toJSON: { virtuals: true },
@@ -98,9 +129,21 @@ const tourSchema = new mongoose.Schema(
   }
 );
 
+// Indexes (1: asc order, -1: desc order)
+tourSchema.index({ price: 1, ratingsAverage: -1 });
+tourSchema.index({ slug: 1 });
+tourSchema.index({ 'startLocation.coordinates': '2dsphere' });
+
 // VIRTUAL PROPERTIES
 tourSchema.virtual('durationWeeks').get(function () {
   return this.duration / 7;
+});
+
+// VIRTUAL POPULATE
+tourSchema.virtual('reviews', {
+  ref: 'Review',
+  foreignField: 'tour',
+  localField: '_id',
 });
 
 // DOCUMENT MIDDLEWARE(s): runs before .save() and .create()
@@ -121,6 +164,15 @@ tourSchema.pre(/^find/, function (next) {
   next();
 });
 
+tourSchema.pre(/^find/, function (next) {
+  this.populate({
+    path: 'guides',
+    select: '-__v -passwordChangedAt',
+  });
+
+  next();
+});
+
 // tourSchema.post(/^find/, function (documents, next) {
 //   console.log(`Find query took ${Date.now() - this.start} ms`);
 //   next();
@@ -128,7 +180,8 @@ tourSchema.pre(/^find/, function (next) {
 
 // AGGREGATION MIDDLEWARE
 tourSchema.pre('aggregate', function (next) {
-  this.pipeline().unshift({ $match: { secretTour: { $ne: true } } });
+  if (!Object.keys(this.pipeline()[0])[0] === '$geoNear')
+    this.pipeline().unshift({ $match: { secretTour: { $ne: true } } });
   next();
 });
 
