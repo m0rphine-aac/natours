@@ -26,33 +26,61 @@ const handleJWTError = () => new AppError('Invalid token. Please login again!', 
 
 const handleJWTExpiredError = () => new AppError('Token expired! Please login again.', 401);
 
-const sendErrorDev = (err, res) => {
-  res.status(err.statusCode).json({
-    status: err.status,
-    message: err.message,
-    stack: err.stack,
-    error: err,
-  });
-};
-
-const sendErrorProd = (err, res) => {
-  // Operational, trusted error: send message to client
-  if (err.isOperational) {
-    res.status(err.statusCode).json({
+const sendErrorDev = (err, req, res) => {
+  // FOR API
+  if (req.originalUrl.startsWith('/api')) {
+    return res.status(err.statusCode).json({
       status: err.status,
       message: err.message,
+      stack: err.stack,
+      error: err,
     });
-
-    // Programming or other unknown error: don't leak error details
   } else {
-    // 1) Log error
+    // FOR RENDERED WEBSITE
     console.error('Error 💥', err);
+    return res
+      .status(err.statusCode)
+      .render('error', { title: 'Something went wrong!', message: err.message });
+  }
+};
 
-    // 2) Send generic message
-    res.status(500).json({
-      status: 'error',
-      message: 'Something went wrong :(',
-    });
+const sendErrorProd = (err, req, res) => {
+  // FOR API
+  if (req.originalUrl.startsWith('/api')) {
+    // Operational, trusted error: send message to client
+    if (err.isOperational) {
+      return res.status(err.statusCode).json({
+        status: err.status,
+        message: err.message,
+      });
+    } else {
+      // Programming or other unknown error: don't leak error details
+      // 1) Log error
+      console.error('Error 💥', err);
+
+      // 2) Send generic message
+      return res.status(500).json({
+        status: 'error',
+        message: 'Something went wrong :(',
+      });
+    }
+  } else {
+    // FOR RENDERED WEBSITE
+    // Operational, trusted error: send message to client
+    if (err.isOperational) {
+      return res
+        .status(err.statusCode)
+        .render('error', { title: 'Something went wrong!', message: err.message });
+    } else {
+      // Programming or other unknown error: don't leak error details
+      // 1) Log error
+      console.error('Error 💥', err);
+
+      // 2) Send generic message
+      return res
+        .status(err.statusCode)
+        .render('error', { title: 'Something went wrong!', message: 'Please try again later.' });
+    }
   }
 };
 
@@ -62,7 +90,7 @@ module.exports = (err, req, res, next) => {
   err.status = err.status || 'error';
 
   if (process.env.NODE_ENV === 'development') {
-    sendErrorDev(err, res);
+    sendErrorDev(err, req, res);
   } else if (process.env.NODE_ENV === 'production') {
     let error = Object.create(err);
 
@@ -86,6 +114,6 @@ module.exports = (err, req, res, next) => {
       error = handleDuplicateFieldsErrorDB(error);
     }
 
-    sendErrorProd(error, res);
+    sendErrorProd(error, req, res);
   }
 };

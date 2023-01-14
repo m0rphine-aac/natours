@@ -76,12 +76,13 @@ module.exports.login = catchAsync(async (req, res, next) => {
   }
 
   // 3) If everything is ok, send the JWT token
-  const token = generateJWTToken(user._id);
-
-  return res.status(200).json({
-    token,
-  });
+  return sendToken(user, 201, res);
 });
+
+module.exports.logout = (req, res) => {
+  res.cookie('JWT', 'loggedout', { expires: new Date(Date.now() + 1000), httpOnly: true });
+  res.status(200).json({ status: 'success' });
+};
 
 module.exports.protect = catchAsync(async (req, res, next) => {
   let token;
@@ -89,6 +90,8 @@ module.exports.protect = catchAsync(async (req, res, next) => {
   // 1) Check if the token exists
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
+  } else if (req.cookies.JWT) {
+    token = req.cookies.JWT;
   }
 
   if (!token) {
@@ -112,6 +115,7 @@ module.exports.protect = catchAsync(async (req, res, next) => {
 
   // 5) Grant access to the protected route
   req.user = currentUser;
+  res.locals.user = currentUser;
   next();
 });
 
@@ -216,3 +220,33 @@ module.exports.updatePassword = catchAsync(async (req, res, next) => {
   // 4) Log the user in, send JWT
   return sendToken(user, 200, res);
 });
+
+// Only for rendered pages, no errors!
+module.exports.isLoggedIn = async (req, res, next) => {
+  if (req.cookies.JWT) {
+    try {
+      // 1) Verify the token
+      const decoded = await promisify(jwt.verify)(req.cookies.JWT, process.env.JWT_SECRET);
+
+      // 2) Check if user still exists
+      const currentUser = await User.findById(decoded.id);
+
+      if (!currentUser) {
+        return next();
+      }
+
+      // 3) Check if user changed password after the token was issued
+      if (currentUser.changedPasswordAfter(decoded.iat)) {
+        return next();
+      }
+
+      // 4) The user is loggedIn
+      res.locals.user = currentUser;
+      return next();
+    } catch (err) {
+      return next();
+    }
+  }
+
+  next();
+};
