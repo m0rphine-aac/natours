@@ -149,12 +149,16 @@ var _polyfill = require("@babel/polyfill");
 var _login = require("./login");
 var _mapbox = require("./mapbox");
 var _updateSettings = require("./updateSettings");
+var _stripe = require("./stripe");
+var _signup = require("./signup");
 // DOM ELEMENTS
 const mapBox = document.getElementById("map");
+const signupForm = document.querySelector(".form.form--signup");
 const loginForm = document.querySelector(".form.form--login");
 const logoutBtn = document.querySelector(".nav__el--logout");
 const userDataForm = document.querySelector(".form.form-user-data");
 const userPasswordForm = document.querySelector(".form.form-user-password");
+const bookBtn = document.getElementById("book-tour");
 // DELEGATION
 if (mapBox) {
     const locations = JSON.parse(mapBox.dataset.locations);
@@ -166,15 +170,22 @@ if (loginForm) loginForm.addEventListener("submit", (e)=>{
     const password = document.getElementById("password").value;
     (0, _login.login)(email, password);
 });
-if (logoutBtn) logoutBtn.addEventListener("click", (0, _login.logout));
-if (userDataForm) userDataForm.addEventListener("submit", (e)=>{
+if (signupForm) signupForm.addEventListener("submit", (e)=>{
     e.preventDefault();
     const name = document.getElementById("name").value;
     const email = document.getElementById("email").value;
-    (0, _updateSettings.updateSettings)({
-        name,
-        email
-    }, "data");
+    const password = document.getElementById("password").value;
+    const passwordConfirm = document.getElementById("passwordConfirm").value;
+    (0, _signup.signup)(name, email, password, passwordConfirm);
+});
+if (logoutBtn) logoutBtn.addEventListener("click", (0, _login.logout));
+if (userDataForm) userDataForm.addEventListener("submit", (e)=>{
+    e.preventDefault();
+    const form = new FormData();
+    form.append("name", document.getElementById("name").value);
+    form.append("email", document.getElementById("email").value);
+    form.append("photo", document.getElementById("photo").files[0]);
+    (0, _updateSettings.updateSettings)(form, "data");
 });
 if (userPasswordForm) userPasswordForm.addEventListener("submit", async (e)=>{
     e.preventDefault();
@@ -192,8 +203,13 @@ if (userPasswordForm) userPasswordForm.addEventListener("submit", async (e)=>{
     document.getElementById("password").value = "";
     document.getElementById("password-confirm").value = "";
 });
+if (bookBtn) bookBtn.addEventListener("click", (e)=>{
+    e.target.textContent = "Processing...";
+    const { tourId  } = e.target.dataset;
+    (0, _stripe.bookTour)(tourId);
+});
 
-},{"./login":"7yHem","./mapbox":"3zDlz","@babel/polyfill":"dTCHC","./updateSettings":"l3cGY"}],"7yHem":[function(require,module,exports) {
+},{"./login":"7yHem","./mapbox":"3zDlz","@babel/polyfill":"dTCHC","./updateSettings":"l3cGY","./stripe":"10tSC","./signup":"fNY2o"}],"7yHem":[function(require,module,exports) {
 // NPM MODULES
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
@@ -11416,6 +11432,59 @@ const updateSettings = async (data, type)=>{
     }
 };
 
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","axios":"jo6P5","./showAlert":"9xPbA"}]},["f2QDv"], "f2QDv", "parcelRequire11c7")
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","axios":"jo6P5","./showAlert":"9xPbA"}],"10tSC":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "bookTour", ()=>bookTour);
+var _axios = require("axios");
+var _axiosDefault = parcelHelpers.interopDefault(_axios);
+var _showAlert = require("./showAlert");
+const bookTour = async (tourID)=>{
+    const stripe = Stripe("pk_test_51MQaAxSEP4GXSCetc2UWi4HB7It3wKcm3GWmABEVpjMYDgjsU7hqfsv2qXQnH9oCUwuHEgZVvtsoz4UzjhH9wagI00yJPQaINx");
+    try {
+        // 1) Get checkout session from the server
+        const session = await (0, _axiosDefault.default)(`/api/v1/bookings/checkout-session/${tourID}`);
+        // 2) Create checkout form and charge credit card
+        await stripe.redirectToCheckout({
+            sessionId: session.data.session.id
+        });
+    } catch (err) {
+        (0, _showAlert.showAlert)("error", err);
+    }
+};
+
+},{"axios":"jo6P5","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","./showAlert":"9xPbA"}],"fNY2o":[function(require,module,exports) {
+// NPM MODULES
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "signup", ()=>signup);
+var _axios = require("axios");
+var _axiosDefault = parcelHelpers.interopDefault(_axios);
+// CUSTOM MODULES
+var _showAlert = require("./showAlert");
+const signup = async (name, email, password, passwordConfirm)=>{
+    try {
+        const res = await (0, _axiosDefault.default)({
+            method: "POST",
+            url: "/api/v1/users/signup",
+            data: {
+                name,
+                email,
+                password,
+                passwordConfirm
+            }
+        });
+        if (res.data.status === "success") {
+            (0, _showAlert.showAlert)("success", "Account created!");
+            window.setTimeout(()=>{
+                location.assign("/");
+            }, 500);
+        }
+    } catch (err) {
+        (0, _showAlert.showAlert)("error", "Error signing up! Try again.");
+    }
+};
+
+},{"axios":"jo6P5","./showAlert":"9xPbA","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}]},["f2QDv"], "f2QDv", "parcelRequire11c7")
 
 //# sourceMappingURL=index.js.map
