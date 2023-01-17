@@ -1,5 +1,5 @@
 // NPM MODULES
-import '@babel/polyfill';
+// import '@babel/polyfill';
 
 // CUSTOM MODULES
 import { login, logout } from './login';
