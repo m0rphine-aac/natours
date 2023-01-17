@@ -10,6 +10,8 @@ const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const cookieParser = require('cookie-parser');
+const compression = require('compression');
+const cors = require('cors');
 
 // CUSTOM MODULES
 const AppError = require('./utils/appError');
@@ -22,6 +24,8 @@ const viewRouter = require('./routes/viewRoutes');
 
 const app = express();
 
+app.enable('trust proxy');
+
 app.set('view engine', 'pug');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -31,6 +35,12 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // GLOBAL MIDDLEWARES
+
+// Implement CORS
+app.use(cors());
+
+// Respond to options request from browser (during pre-flight phase), so that complex request (put, patch etc.) can be done for all routes
+app.options('*', cors());
 
 // Serving static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -71,6 +81,9 @@ app.use(
     ],
   })
 );
+
+// Compress all the text that is sent to client
+app.use(compression());
 
 // Test Middleware (for development purpose)
 app.use((req, res, next) => {

@@ -17,14 +17,14 @@ const generateJWTToken = id => {
   });
 };
 
-const sendToken = (user, statusCode, res) => {
+const sendToken = (user, statusCode, req, res) => {
   const token = generateJWTToken(user._id);
   const cookieOptions = {
     expires: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
     httpOnly: true,
   };
 
-  if (process.env.NODE_ENV === 'production') {
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
     cookieOptions['secure'] = true;
   }
 
@@ -56,7 +56,7 @@ module.exports.signup = catchAsync(async (req, res, next) => {
   const url = `${req.protocol}://${req.get('host')}/me`;
   await new Email(newUser, url).sendWelcome();
 
-  return sendToken(newUser, 201, res);
+  return sendToken(newUser, 201, req, res);
 });
 
 module.exports.login = catchAsync(async (req, res, next) => {
@@ -79,7 +79,7 @@ module.exports.login = catchAsync(async (req, res, next) => {
   }
 
   // 3) If everything is ok, send the JWT token
-  return sendToken(user, 201, res);
+  return sendToken(user, 201, req, res);
 });
 
 module.exports.logout = (req, res) => {
@@ -217,7 +217,7 @@ module.exports.updatePassword = catchAsync(async (req, res, next) => {
   await user.save();
 
   // 4) Log the user in, send JWT
-  return sendToken(user, 200, res);
+  return sendToken(user, 200, req, res);
 });
 
 // Only for rendered pages, no errors!
